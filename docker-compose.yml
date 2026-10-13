@@ -9,9 +9,10 @@ services:
     # "image" : comportement selon sa combinaison avec "build" :
     #   - build + image -> Compose CONSTRUIT l'image et lui donne CE nom/tag.
     #   - image seul    -> Compose TÉLÉCHARGE l'image (locale sinon registre), il ne construit rien.
-    # Ici les deux sont présents : l'image construite s'appelle workshop-organizer:<APP_VERSION>.
-    # APP_VERSION est définie dans le fichier .env, aussi utilisé par build.gradle (une seule source).
-    image: workshop-organizer:${APP_VERSION}
+    # Ici les deux sont présents : l'image construite s'appelle workshop-organizer:latest en local.
+    # ${APP_VERSION:-latest} : si la variable d'environnement APP_VERSION est définie (cas de la CI),
+    # elle sert de tag ; sinon "latest". La version de référence est ARG APP_VERSION du Dockerfile.
+    image: workshop-organizer:${APP_VERSION:-latest}
     # Reconstruit l'image à chaque "docker compose up" (rapide : les couches inchangées sont en cache).
     pull_policy: build
     ports:
