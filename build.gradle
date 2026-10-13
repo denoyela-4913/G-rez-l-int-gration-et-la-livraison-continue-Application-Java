@@ -8,7 +8,14 @@ plugins {
 }
 
 group = 'fr.oc.devops'
-version = '0.2.4'
+
+// Source unique de la version : APP_VERSION dans le fichier .env (aussi lu par docker compose).
+def envProps = new Properties()
+def envFile = file('.env')
+if (envFile.exists()) {
+	envFile.withInputStream { envProps.load(it) }
+}
+version = envProps.getProperty('APP_VERSION', 'unspecified')
 
 repositories {
 	mavenCentral()
@@ -69,6 +76,11 @@ test {
 	testLogging {
 		events "passed", "skipped", "failed"
 	}
+	// Rapports générés dans test-results/ (à la racine) plutôt que dans build/reports et build/test-results
+	reports {
+		html.outputLocation = layout.projectDirectory.dir("test-results/html")
+		junitXml.outputLocation = layout.projectDirectory.dir("test-results/xml")
+	}
 }
 
 war {
@@ -94,4 +106,8 @@ publishing {
 			}
 		}
     }
+}
+// test-results/ est hors de build/ : on l'ajoute à "clean" pour que ./gradlew clean nettoie aussi les rapports.
+clean {
+	delete "test-results"
 }

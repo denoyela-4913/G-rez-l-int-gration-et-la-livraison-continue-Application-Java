@@ -1,0 +1,19 @@
+# Fichiers exclus du contexte de build Docker (plus rapide, et pas de fuite de fichiers inutiles).
+
+# Artefacts locaux : le jar est reconstruit dans l'image
+build
+.gradle
+
+# Historique git et fichiers d'éditeur
+.git
+.idea
+.vscode
+
+# Ne servent pas à construire l'image
+k8s
+db
+*.md
+docker-compose.yml
+Dockerfile
+.dockerignore
+test-results

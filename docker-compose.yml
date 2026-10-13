@@ -1,13 +1,38 @@
+# Lancement local : docker compose up
+# Arrêt : docker compose down   (ajouter -v pour supprimer aussi les données de la base)
+
 services:
 
   app:
-    image: workshop-organizer
+    # "build" : construit l'image à partir du Dockerfile à la racine (contexte = ".").
+    build: .
+    # "image" : comportement selon sa combinaison avec "build" :
+    #   - build + image -> Compose CONSTRUIT l'image et lui donne CE nom/tag.
+    #   - image seul    -> Compose TÉLÉCHARGE l'image (locale sinon registre), il ne construit rien.
+    # Ici les deux sont présents : l'image construite s'appelle workshop-organizer:<APP_VERSION>.
+    # APP_VERSION est définie dans le fichier .env, aussi utilisé par build.gradle (une seule source).
+    image: workshop-organizer:${APP_VERSION}
+    # Reconstruit l'image à chaque "docker compose up" (rapide : les couches inchangées sont en cache).
+    pull_policy: build
     ports:
       - "8080:8080"
     environment:
       SPRING_DATASOURCE_URL: "jdbc:postgresql://db:5432/workshopsdb"
       SPRING_DATASOURCE_USERNAME: workshops_user
       SPRING_DATASOURCE_PASSWORD: oc2024
+    # Attend que PostgreSQL soit réellement prêt (healthcheck de db), pas seulement démarré.
+    depends_on:
+      db:
+        condition: service_healthy
+    # Pas d'Actuator dans le projet : on teste que la page d'accueil répond.
+    # wget est fourni par BusyBox dans l'image Alpine (pas de curl).
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/"]
+      interval: 10s      # fréquence du test
+      timeout: 3s        # durée max d'un test
+      retries: 5         # échecs consécutifs avant "unhealthy"
+      start_period: 30s  # délai de grâce au démarrage : les échecs ne comptent pas
+      start_interval: 2s # fréquence des tests pendant start_period (healthy plus vite)
 
   db:
     image: postgres:13
@@ -15,3 +40,24 @@ services:
       POSTGRES_USER: workshops_user
       POSTGRES_PASSWORD: oc2024
       POSTGRES_DB: workshopsdb
+    # Persistance des données : format "<volume>:<chemin dans le conteneur>".
+    #   - postgres_data : volume nommé, géré par Docker (déclaré en bas de ce fichier).
+    #   - /var/lib/postgresql/data : dossier où PostgreSQL écrit ses fichiers (PGDATA).
+    # Sans volume, ce dossier vit dans la couche du conteneur et est perdu à sa suppression.
+    # Avec le volume, les données survivent à "docker compose down" ;
+    # elles ne sont supprimées qu'avec "docker compose down -v".
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # pg_isready vérifie que PostgreSQL accepte les connexions (utilisé par depends_on de app).
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "workshops_user", "-d", "workshopsdb"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+      start_interval: 1s
+
+# Déclaration des volumes nommés (Docker crée le stockage, sans chemin à préciser).
+# Le nom réel est préfixé par le projet : dev-appli-java_postgres_data.
+volumes:
+  postgres_data:
