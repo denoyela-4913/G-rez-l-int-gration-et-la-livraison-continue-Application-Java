@@ -20,7 +20,7 @@ concurrency:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # version fixée (pas "latest") pour un environnement stable
     steps:
       - uses: actions/checkout@v7
 
