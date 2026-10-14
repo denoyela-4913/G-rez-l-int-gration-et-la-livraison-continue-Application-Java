@@ -13,6 +13,13 @@ group = 'fr.oc.devops'
 // (elle doit rester identique à ARG APP_VERSION dans le Dockerfile ; run-tests.sh le vérifie).
 version = '0.2.4'
 
+// Agent ByteBuddy (utilisé par Mockito) : chargé au démarrage de la JVM de test (-javaagent)
+// plutôt que dynamiquement.
+// Évite le warning "A Java agent has been loaded dynamically" (JDK 21+, interdit par défaut dans un futur JDK).
+configurations {
+	mockitoAgent
+}
+
 repositories {
 	mavenCentral()
 }
@@ -40,6 +47,7 @@ dependencies {
 	runtimeOnly 'org.postgresql:postgresql:42.7.3'
 
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	mockitoAgent('net.bytebuddy:byte-buddy-agent') { transitive = false } // version gérée par Spring Boot
 
 }
 
@@ -69,6 +77,7 @@ compileJava.dependsOn tasks.openApiGenerate
 
 test {
 	useJUnitPlatform()
+	jvmArgs "-javaagent:${configurations.mockitoAgent.asPath}"
 	testLogging {
 		events "passed", "skipped", "failed"
 	}
