@@ -1,0 +1,52 @@
+# Pipeline CI : exécute les tests unitaires via ./run-tests.sh et publie le rapport JUnit.
+# Le même script run-tests.sh et le même chemin de rapport (test-results/xml/) sont utilisés
+# dans le projet Angular : seule l'étape d'installation de l'environnement diffère.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+# Droits minimaux du GITHUB_TOKEN. "checks: write" permet de publier le rapport de tests
+# dans l'onglet Checks de la pull request / du commit.
+permissions:
+  contents: read
+  checks: write
+
+# Une nouvelle exécution sur la même branche annule la précédente encore en cours.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Installer Java 21
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle # cache des dépendances Gradle (~/.gradle), clé basée sur les fichiers Gradle
+
+      - name: Exécuter les tests
+        run: ./run-tests.sh
+
+      # if: always() : le rapport est publié même si les tests échouent (c'est là qu'on en a besoin).
+      - name: Publier le rapport de tests
+        if: always()
+        # Action tierce : fixée sur le SHA du commit (tag v6.6.1), car un tag peut être déplacé.
+        uses: mikepenz/action-junit-report@6ef3fdcfcd5f0b5d14df3e659ef19b8c6820f93d # v6.6.1
+        with:
+          report_paths: test-results/xml/*.xml # JUnit XML (Gradle et Karma)
+          check_name: Rapport de tests
+
+      - name: Conserver les rapports (XML + HTML)
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results
+          path: test-results/
+          if-no-files-found: warn
