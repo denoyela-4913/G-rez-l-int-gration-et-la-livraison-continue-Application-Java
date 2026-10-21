@@ -8,9 +8,11 @@ name: CI
 
 on:
   push:
-    # Les tags git (vX.Y.Z) sont créés par semantic-release : les ignorer évite qu'un tag poussé à la
-    # main ne soit pris pour une branche et ne produise une image Docker au nom parasite (ex. v0.2.4-206db09).
-    tags-ignore: ['**']
+    # Seules les branches déclenchent la CI : les tags git (vX.Y.Z) sont créés par semantic-release.
+    # Un tag poussé à la main serait pris pour une branche et produirait une image Docker au nom
+    # parasite (ex. v0.2.4-206db09). Définir "branches" seul suffit à ignorer les tags ; "tags-ignore"
+    # seul désactiverait au contraire aussi les pushs de branches.
+    branches: ['**']
   pull_request:
 
 # Droits minimaux du GITHUB_TOKEN. "checks: write" permet de publier le rapport de tests
