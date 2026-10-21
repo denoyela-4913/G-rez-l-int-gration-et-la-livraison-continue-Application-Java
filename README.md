@@ -124,7 +124,7 @@ le tag de cette branche.
 | Utilisateur non-root (UID) | 10002 | 10001 |
 | Dépendance au runtime | aucune | PostgreSQL (service `db`) |
 | Test de fonctionnement en CI | `docker run`, puis `curl` sur `/`, sur une route inconnue (repli vers `index.html`) et sur `/assets/mock/olympic.json`, et contrôle de l'UID | `docker compose up --no-build --wait` (app + db) puis `curl` sur `/` et contrôle de l'UID |
-| Version applicative | pas de version dans l'image | `ARG APP_VERSION` du Dockerfile (jar nommé d'après `build.gradle`) |
+| Version applicative | `version` de `package.json` (mise à jour par la CI) ; l'image reçoit le tag `X.Y.Z` | `ARG APP_VERSION` du Dockerfile et `version` de `build.gradle` (mis à jour par la CI via `update_version.sh`) ; l'image reçoit le tag `X.Y.Z` |
 
 ### Local et CI : ce qui diffère
 
