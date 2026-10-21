@@ -8,6 +8,9 @@ name: CI
 
 on:
   push:
+    # Les tags git (vX.Y.Z) sont créés par semantic-release : les ignorer évite qu'un tag poussé à la
+    # main ne soit pris pour une branche et ne produise une image Docker au nom parasite (ex. v0.2.4-206db09).
+    tags-ignore: ['**']
   pull_request:
 
 # Droits minimaux du GITHUB_TOKEN. "checks: write" permet de publier le rapport de tests
