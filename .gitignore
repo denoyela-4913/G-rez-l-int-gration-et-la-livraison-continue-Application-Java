@@ -41,3 +41,6 @@ out/
 java-generated/
 ### Rapports de tests ###
 test-results/
+
+### Claude Code (skills personnelles, utilisées côté Angular) ###
+.claude/
