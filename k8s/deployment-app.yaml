@@ -14,19 +14,23 @@ spec:
     spec:
       containers:
       - name: workshop-organizer-app
-        # TODO: add the image of the application from the gitlab registry
+        # Image publiée par la CI sur GHCR. Le tag est une version précise (jamais "latest") : le
+        # déploiement est reproductible. Le paquet GHCR est public, donc aucun imagePullSecret n'est
+        # nécessaire (il ne le serait que pour un registre privé).
+        image: ghcr.io/denoyela-4913/oc-p04-java-workshop-organizer-web-api:0.3.1
         ports:
         - containerPort: 8080
         env:
         - name: SPRING_DATASOURCE_URL
-          # TODO: check the datasource URL
-          value: jdbc:postgresql://workshop-organizer-db:5432/workshop-organizer-database
+          # Le nom d'hôte est celui du Service de la base (service-db.yaml), résolu par le DNS du cluster.
+          value: jdbc:postgresql://workshop-organizer-db-service:5432/workshop-organizer-database
         - name: SPRING_DATASOURCE_USERNAME
           valueFrom:
             secretKeyRef:
               name: workshop-organizer-db-secret
               key: username
-        # TODO: add the spring database password environment variable 
-      # TODO: define imagePullSecrets to use a docker-registry secret and authorize Kubenetes 
-      # to pull images from private gitlab registry.
-      # I found this article to help you : https://medium.com/@stasko.lukasz/how-to-pull-docker-images-from-gitlab-container-registry-in-kubernetes-cluster-aae52787074a
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: workshop-organizer-db-secret
+              key: password
