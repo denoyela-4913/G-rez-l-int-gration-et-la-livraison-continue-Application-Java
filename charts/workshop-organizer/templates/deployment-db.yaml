@@ -46,6 +46,19 @@ spec:
           value: {{ .Values.db.port | quote }}
         ports:
         - containerPort: {{ .Values.db.port }}
+        {{- if .Values.db.probes.enabled }}
+        # Prêt = PostgreSQL accepte les connexions EN TCP (-h 127.0.0.1). Pendant son initialisation, l'image
+        # démarre un serveur temporaire sans TCP (uniquement un socket local) : sans -h, pg_isready passerait
+        # par ce socket et répondrait "prêt" alors que la base n'existe pas encore.
+        # Pas de livenessProbe : voir values.yaml.
+        readinessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - pg_isready -h 127.0.0.1 -p "${PGPORT:-5432}" -U "$POSTGRES_USER"
+          {{- toYaml .Values.db.probes.readiness | nindent 10 }}
+        {{- end }}
         volumeMounts:
         - name: db-data
           mountPath: /var/lib/postgresql/data

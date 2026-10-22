@@ -11,6 +11,29 @@ app:
   # (cas du paquet GHCR public). Le Secret doit exister dans le namespace avant l'installation.
   imagePullSecret: ""
   replicas: 1
+  # Pause (en secondes) avant l'arrêt d'un pod, pour laisser le Service le retirer de sa liste : évite la coupure
+  # lors d'une mise à jour. 0 : pas de pause. Doit rester inférieure au délai de grâce de Kubernetes (30 s).
+  preStopSeconds: 5
+  # Sondes de santé de l'application. enabled: false les supprime toutes (utile pour comparer ou déboguer).
+  probes:
+    enabled: true
+    # Route interrogée (HTTP, sur le port du conteneur). "/" : l'application n'a pas d'Actuator.
+    path: /
+    # Démarrage : tant qu'elle n'a pas réussi, readiness et liveness sont suspendues. 30 x 2 s = 60 s de marge.
+    startup:
+      periodSeconds: 2
+      timeoutSeconds: 3
+      failureThreshold: 30
+    # Prêt : en cas d'échec, le pod est retiré du Service, sans être redémarré.
+    readiness:
+      periodSeconds: 5
+      timeoutSeconds: 3
+      failureThreshold: 3
+    # Vivant : en cas d'échec, le conteneur est redémarré (3 x 10 s = 30 s de tolérance).
+    liveness:
+      periodSeconds: 10
+      timeoutSeconds: 3
+      failureThreshold: 3
 
 db:
   image: postgres:13
@@ -23,6 +46,15 @@ db:
   # avec "helm upgrade" met le Secret à jour mais pas le mot de passe réel stocké dans le volume.
   password: ""
   database: workshop-organizer-database
+  # Sonde de la base. Pas de liveness : redémarrer une base sur une fausse alerte est plus risqué que d'attendre
+  # (avec persistence.enabled=false, ce serait même une perte de données).
+  probes:
+    enabled: true
+    readiness:
+      # 2 s : la base est prête dès qu'elle accepte les connexions, sans attendre jusqu'à 5 s de plus.
+      periodSeconds: 2
+      timeoutSeconds: 3
+      failureThreshold: 3
   persistence:
     # true : les données sont dans un volume persistant (PVC) et survivent à la suppression du pod.
     # false : dossier temporaire (emptyDir), les données disparaissent avec le pod.

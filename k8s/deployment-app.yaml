@@ -12,6 +12,17 @@ spec:
       labels:
         app: workshop-organizer-app
     spec:
+      # Attend que la base accepte les connexions avant de lancer l'application. Sans cela, l'application
+      # démarre (~3 s) avant que le Service de la base ait une adresse (il n'en a que quand la base est
+      # prête, grâce à sa readinessProbe), échoue à se connecter et est redémarrée par Kubernetes.
+      # pg_isready résout le NOM du Service : il attend donc aussi que ce nom existe dans le DNS.
+      initContainers:
+      - name: wait-for-db
+        image: postgres:13
+        command:
+        - sh
+        - -c
+        - until pg_isready -h workshop-organizer-db-service -p 5432; do echo "en attente de la base..."; sleep 2; done
       containers:
       - name: workshop-organizer-app
         # Image publiée par la CI sur GHCR. Le tag est une version précise (jamais "latest") : le
@@ -19,7 +30,43 @@ spec:
         # nécessaire (il ne le serait que pour un registre privé).
         image: ghcr.io/denoyela-4913/oc-p04-java-workshop-organizer-web-api:0.3.1
         ports:
-        - containerPort: 8080
+        - name: http
+          containerPort: 8080
+        # Démarrage : tant qu'elle n'a pas réussi, les deux autres sondes sont suspendues. Marge large
+        # (30 essais x 2 s = 60 s) : un démarrage lent ne doit pas être pris pour une panne.
+        startupProbe:
+          httpGet:
+            path: /
+            port: http
+          periodSeconds: 2
+          timeoutSeconds: 3
+          failureThreshold: 30
+        # Prêt : tant qu'elle échoue, le pod est retiré du Service (aucune requête), sans être redémarré.
+        # "/" ne vérifie pas la base : l'application n'a pas d'Actuator.
+        readinessProbe:
+          httpGet:
+            path: /
+            port: http
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        # Vivant : si elle échoue 3 fois de suite (30 s), le conteneur est redémarré. Sert quand la JVM est
+        # bloquée sans s'arrêter. Volontairement sur "/" et pas sur une route qui dépend de la base : une
+        # panne de la base ne doit pas faire redémarrer l'application.
+        livenessProbe:
+          httpGet:
+            path: /
+            port: http
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+        # Pause avant l'arrêt d'un pod : au moment où Kubernetes arrête l'ancien pod lors d'une mise à jour, le Service
+        # n'a pas encore fini de le retirer de sa liste. Sans pause, les requêtes encore envoyées à ce pod échouent
+        # (mesuré : environ 2 s de coupure). Pendant ces 5 s, le pod continue de répondre.
+        lifecycle:
+          preStop:
+            exec:
+              command: ["sleep", "5"]
         env:
         - name: SPRING_DATASOURCE_URL
           # Le nom d'hôte est celui du Service de la base (service-db.yaml), résolu par le DNS du cluster.

@@ -40,6 +40,20 @@ spec:
           value: /var/lib/postgresql/data/pgdata
         ports:
         - containerPort: 5432
+        # Prêt = PostgreSQL accepte les connexions EN TCP (-h 127.0.0.1). Pendant son initialisation, l'image
+        # démarre un serveur temporaire sans TCP (uniquement un socket local) : sans -h, pg_isready passerait par
+        # ce socket et répondrait "prêt" alors que la base n'existe pas encore.
+        # Pas de livenessProbe : redémarrer une base sur une fausse alerte est plus risqué que d'attendre.
+        readinessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - pg_isready -h 127.0.0.1 -p "${PGPORT:-5432}" -U "$POSTGRES_USER"
+          # 2 s : la base est prête dès qu'elle accepte les connexions, sans attendre jusqu'à 5 s de plus.
+          periodSeconds: 2
+          timeoutSeconds: 3
+          failureThreshold: 3
         # Monte le volume là où PostgreSQL écrit ses fichiers.
         volumeMounts:
         - name: db-data
