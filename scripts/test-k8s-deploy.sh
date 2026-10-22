@@ -82,7 +82,9 @@ elif command -v kubectl >/dev/null 2>&1 && [ "$(kubectl config current-context 2
 	# Garde-fou : ce script crée et supprime des ressources, il ne doit viser que Minikube.
 	MISSING+=("Le contexte kubectl actuel n'est pas \"minikube\" (c'est \"$(kubectl config current-context 2>/dev/null)\"). Lancer :  kubectl config use-context minikube")
 fi
-if command -v minikube >/dev/null 2>&1 && ! pgrep -f "minikube tunnel" >/dev/null 2>&1; then
+# Le motif est ancré sur le DÉBUT de la ligne de commande : sans cela, tout processus dont la ligne de
+# commande contient seulement le texte "minikube tunnel" (un shell, un éditeur...) serait pris pour le tunnel.
+if command -v minikube >/dev/null 2>&1 && ! pgrep -f "^(/[^ ]*/)?minikube tunnel" >/dev/null 2>&1; then
 	MISSING+=("Le tunnel Minikube n'est pas lancé. Dans un AUTRE terminal, lancer et laisser ouvert :  minikube tunnel")
 fi
 
