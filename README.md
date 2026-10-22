@@ -176,3 +176,97 @@ npx --yes -p semantic-release@25.0.9 -p @semantic-release/commit-analyzer@13.0.1
 
 Il affiche la version qui serait créée (ou « no release »). Il doit être lancé depuis `main`, avec la
 variable `GITHUB_TOKEN` définie (par exemple `GITHUB_TOKEN=$(gh auth token)`).
+
+## Déploiement sur Kubernetes (Minikube) et Helm
+
+Deux façons de déployer l'application et sa base PostgreSQL, qui donnent le même résultat en développement :
+
+| | Dossier | Quand l'utiliser |
+|---|---|---|
+| Manifestes | `k8s/` | déploiement direct : `kubectl apply -f k8s/` |
+| Chart Helm | `charts/workshop-organizer/` | plusieurs environnements (dev, staging) avec des valeurs différentes |
+
+Le rendu du chart avec `values-dev.yaml` est identique aux manifestes de `k8s/` (hors étiquettes), à une
+variable près : le chart ajoute `PGPORT` pour que `db.port` soit réellement pris en compte par PostgreSQL.
+
+### Le chart Helm
+
+Le schéma des valeurs reprend celui de `values.tpl.yaml` (`app.*` et `db.*`), complété par `app.replicas`,
+`db.persistence.*` et `service.*`.
+
+| Valeur | `values-dev.yaml` | `values-staging.yaml` | Rôle |
+|---|---|---|---|
+| `app.image` | `...:0.3.1` | `...:0.3.1` | image complète, **tag compris** ; obligatoire (le chart refuse de s'installer sans) |
+| `app.replicas` | 1 | 1 | nombre de pods de l'application |
+| `app.imagePullSecret` | (vide) | (vide) | Secret docker-registry pour un registre **privé** ; le paquet GHCR étant public, il n'est pas utilisé |
+| `db.password` | `oc2024` (dev uniquement) | **aucun : à fournir** | obligatoire ; lu par la base et l'application depuis le même Secret |
+| `db.persistence.size` | 1Gi | 2Gi | taille du volume de la base |
+| `service.port` | 8080 | 8082 | port du Service sur la machine |
+
+Les autres valeurs (`db.image`, `db.port`, `db.username`, `db.database`, `db.persistence.enabled`,
+`db.persistence.storageClass`, `service.type`) ont une valeur par défaut dans `values.yaml`.
+
+Staging est sur le port **8082** pour que dev et staging puissent être installés et joignables en même temps :
+avec `minikube tunnel`, deux Services sur le même port se partagent le même port de la machine, et l'un masque
+l'autre (8081 est déjà utilisé par le staging du dépôt Angular). Ces ports ne sont pas privilégiés : pas de `sudo`.
+
+```bash
+helm install workshop charts/workshop-organizer -f charts/workshop-organizer/values-dev.yaml -n workshop-dev --create-namespace
+helm install workshop charts/workshop-organizer -f charts/workshop-organizer/values-staging.yaml --set db.password='<mot de passe>' -n workshop-staging --create-namespace
+helm list -A                                   # releases installées
+helm upgrade workshop charts/workshop-organizer -f charts/workshop-organizer/values-staging.yaml --set db.password='<mot de passe>' -n workshop-staging --set app.replicas=2
+helm history workshop -n workshop-staging      # révisions
+helm rollback workshop 1 -n workshop-staging   # retour à la révision 1
+helm uninstall workshop -n workshop-dev
+```
+
+Vérifier un chart sans rien installer : `helm lint charts/workshop-organizer -f charts/workshop-organizer/values-dev.yaml`
+(syntaxe) et `helm template workshop charts/workshop-organizer -f charts/workshop-organizer/values-dev.yaml` (rendu).
+
+### Le mot de passe de la base
+
+- Le fichier de dev contient un mot de passe de **développement** (celui de `docker-compose.yml`). Un mot de
+  passe réel ne doit pas être versionné dans Git : pour staging, il est fourni à l'installation avec `--set`.
+- **PostgreSQL ne lit `POSTGRES_PASSWORD` qu'à la création de la base.** Faire `helm upgrade` avec un autre
+  mot de passe met à jour le Secret, mais pas le mot de passe réel stocké dans le volume. Rien ne se
+  voit tant que les pods ne redémarrent pas ; au prochain redémarrage de l'application, elle lit le nouveau
+  mot de passe et PostgreSQL le refuse (`password authentication failed`). Pour changer un mot de passe déjà
+  en place, il faut le changer dans PostgreSQL (`ALTER USER`) **et** dans le Secret, ou recréer le volume.
+
+### Persistance des données
+
+Par défaut, la base écrit dans un volume persistant (`db.persistence.enabled: true`) et ses données survivent à
+la suppression du pod. Avec `--set db.persistence.enabled=false`, elle utilise un dossier temporaire : les
+données disparaissent avec le pod. Supprimer le namespace (ou le PVC) supprime aussi le volume et ses données.
+
+### Mettre à jour la version déployée
+
+Le tag de l'image est écrit **à la main** dans `app.image` de chaque fichier de valeurs (et `appVersion` dans
+`Chart.yaml`, à titre informatif). Une release de l'application (semantic-release) publie une nouvelle image
+mais ne modifie pas ces fichiers : après une release, éditer `values-dev.yaml` (et `values-staging.yaml` quand
+on décide de promouvoir la version), puis `helm upgrade`. Tant que ce n'est pas fait, le cluster continue de
+faire tourner l'ancienne version.
+
+### Limite connue : pas de sonde de disponibilité
+
+Ni le chart ni `k8s/` ne définissent de sonde (`readinessProbe`). `helm install --wait` rend donc la main dès
+que les conteneurs ont démarré, éventuellement pendant l'initialisation de PostgreSQL. Les scripts de test
+attendent que l'application réponde au lieu de supposer qu'elle est prête.
+
+### Accès avec `minikube tunnel`
+
+Lancer `minikube tunnel` dans un autre terminal et le laisser ouvert : le Service reçoit alors une adresse
+externe (`127.0.0.1`) et l'application est visible sur `http://localhost:<service.port>`.
+
+### Tester le déploiement
+
+```bash
+scripts/test-k8s-deploy.sh                    # manifestes de k8s/
+scripts/test-k8s-deploy.sh --helm dev         # chart Helm, environnement dev (port 8080)
+scripts/test-k8s-deploy.sh --helm staging     # chart Helm, environnement staging (port 8082)
+```
+
+Le script vérifie les prérequis (affiche les commandes à lancer s'il en manque), déploie dans un namespace
+jetable, teste l'application par le Service, l'écriture dans la base et la survie des données à la suppression
+des pods, puis supprime le namespace (`--keep` le conserve, `--pause` attend Entrée entre les étapes). En mode
+`--helm`, il passe un mot de passe aléatoire avec `--set` et vérifie qu'il est bien celui du Secret.
