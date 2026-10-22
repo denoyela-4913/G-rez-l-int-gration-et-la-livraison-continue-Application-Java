@@ -14,7 +14,7 @@
     [
       "@semantic-release/git",
       {
-        "assets": ["build.gradle", "Dockerfile"],
+        "assets": ["build.gradle", "Dockerfile", "charts/workshop-organizer/values-dev.yaml"],
         "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
       }
     ],

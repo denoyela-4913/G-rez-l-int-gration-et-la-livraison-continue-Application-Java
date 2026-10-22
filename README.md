@@ -140,7 +140,7 @@ le tag de cette branche.
 La version de l'application est calculée automatiquement par
 [semantic-release](https://semantic-release.org/) à chaque push sur `main`, à partir des messages de
 commit. Elle n'est plus modifiée à la main : `build.gradle` et `Dockerfile` sont mis à jour par la CI
-(avec `update_version.sh`).
+(avec `update_version.sh`). Le même script met aussi à jour le tag de l'image dans `values-dev.yaml`.
 
 ### Écrire ses messages de commit
 
@@ -241,11 +241,15 @@ données disparaissent avec le pod. Supprimer le namespace (ou le PVC) supprime 
 
 ### Mettre à jour la version déployée
 
-Le tag de l'image est écrit **à la main** dans `app.image` de chaque fichier de valeurs (et `appVersion` dans
-`Chart.yaml`, à titre informatif). Une release de l'application (semantic-release) publie une nouvelle image
-mais ne modifie pas ces fichiers : après une release, éditer `values-dev.yaml` (et `values-staging.yaml` quand
-on décide de promouvoir la version), puis `helm upgrade`. Tant que ce n'est pas fait, le cluster continue de
-faire tourner l'ancienne version.
+Le tag de l'image est dans `app.image` de chaque fichier de valeurs (et `appVersion` dans `Chart.yaml`, à titre
+informatif). Il se met à jour différemment selon l'environnement :
+
+- **dev : automatique.** À chaque release, `update_version.sh` (lancé par semantic-release) réécrit le tag de
+  `values-dev.yaml`, qui part dans le commit `chore(release)`. Il reste à lancer `helm upgrade` pour que le
+  cluster suive.
+- **staging : à la main.** `values-staging.yaml` n'est jamais modifié par la CI : staging ne change de version
+  que sur décision. Pour promouvoir, recopier dans `values-staging.yaml` un tag déjà passé en dev, puis
+  `helm upgrade`.
 
 ### Sondes de santé
 
