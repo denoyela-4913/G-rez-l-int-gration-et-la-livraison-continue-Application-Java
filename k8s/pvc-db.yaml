@@ -1,0 +1,16 @@
+# Demande de stockage persistant pour les données de PostgreSQL. Sans elle, les fichiers de la base
+# vivent dans le conteneur et sont perdus dès que le pod est recréé.
+# Le PVC est une "demande" : Kubernetes la satisfait avec un volume (PersistentVolume) créé
+# automatiquement par la StorageClass par défaut du cluster ("standard" sur Minikube).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: workshop-organizer-db-pvc
+spec:
+  # ReadWriteOnce : le volume n'est monté en écriture que par un seul nœud à la fois (suffisant :
+  # une seule base, un seul pod).
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi

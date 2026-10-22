@@ -4,6 +4,11 @@ metadata:
   name: workshop-organizer-db-deployment
 spec:
   replicas: 1
+  # Recreate : l'ancien pod est arrêté AVANT de démarrer le nouveau. Avec la stratégie par défaut
+  # (RollingUpdate), le nouveau pod démarrerait pendant que l'ancien tourne encore : deux PostgreSQL
+  # sur les mêmes fichiers, ce qui peut les corrompre (et un volume ReadWriteOnce ne se monte pas deux fois).
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: workshop-organizer-db
@@ -29,5 +34,17 @@ spec:
               key: password
         - name: POSTGRES_DB
           value: workshop-organizer-database
+        # Sous-dossier du volume : la racine d'un volume peut contenir un dossier "lost+found", et
+        # PostgreSQL refuse d'initialiser une base dans un dossier non vide.
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
         ports:
         - containerPort: 5432
+        # Monte le volume là où PostgreSQL écrit ses fichiers.
+        volumeMounts:
+        - name: db-data
+          mountPath: /var/lib/postgresql/data
+      volumes:
+      - name: db-data
+        persistentVolumeClaim:
+          claimName: workshop-organizer-db-pvc
