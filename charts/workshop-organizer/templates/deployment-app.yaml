@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: workshop-organizer-app-deployment
+  labels:
+    {{- include "workshop-organizer.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.app.replicas }}
+  selector:
+    matchLabels:
+      app: workshop-organizer-app
+  template:
+    metadata:
+      labels:
+        app: workshop-organizer-app
+        {{- include "workshop-organizer.labels" . | nindent 8 }}
+    spec:
+      {{- if .Values.app.imagePullSecret }}
+      # Rendu seulement si une valeur est donnée : registre privé.
+      imagePullSecrets:
+      - name: {{ .Values.app.imagePullSecret }}
+      {{- end }}
+      containers:
+      - name: workshop-organizer-app
+        image: {{ required "app.image est obligatoire (ex. ghcr.io/utilisateur/image:0.3.1) : utiliser -f values-dev.yaml ou --set app.image=..." .Values.app.image | quote }}
+        ports:
+        - containerPort: {{ .Values.app.port }}
+        env:
+        - name: SPRING_DATASOURCE_URL
+          # Le nom d'hôte est celui du Service de la base (service-db.yaml), résolu par le DNS du cluster.
+          value: {{ printf "jdbc:postgresql://workshop-organizer-db-service:%v/%s" .Values.db.port .Values.db.database | quote }}
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: workshop-organizer-db-secret
+              key: username
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: workshop-organizer-db-secret
+              key: password

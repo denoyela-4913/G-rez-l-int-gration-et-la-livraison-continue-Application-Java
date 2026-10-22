@@ -1,0 +1,9 @@
+Workshop Organizer déployé (release {{ .Release.Name }}, namespace {{ .Release.Namespace }}).
+
+Image : {{ .Values.app.image }}   Réplicas : {{ .Values.app.replicas }}
+Base  : {{ .Values.db.image }}, base "{{ .Values.db.database }}", stockage {{ if .Values.db.persistence.enabled }}persistant ({{ .Values.db.persistence.size }}){{ else }}TEMPORAIRE (emptyDir){{ end }}
+
+Avec "minikube tunnel" actif, l'application est visible sur : http://localhost:{{ .Values.service.port }}
+{{- if lt (int .Values.service.port) 1024 }}
+(port {{ .Values.service.port }} < 1024 : le tunnel demande le mot de passe sudo)
+{{- end }}

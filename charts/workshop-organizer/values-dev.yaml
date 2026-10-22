@@ -1,0 +1,14 @@
+# Environnement de développement.
+# Installation : helm install workshop charts/workshop-organizer -f charts/workshop-organizer/values-dev.yaml -n workshop-dev --create-namespace
+app:
+  # Tag écrit à la main : à mettre à jour après chaque release pour suivre la dernière version.
+  image: ghcr.io/denoyela-4913/oc-p04-java-workshop-organizer-web-api:0.3.1
+  replicas: 1
+
+db:
+  # Mot de passe de DÉVELOPPEMENT, le même que docker-compose.yml. Ne convient qu'à un environnement
+  # jetable : un mot de passe réel ne doit pas être versionné dans Git (voir values-staging.yaml).
+  password: oc2024
+
+service:
+  port: 8080
