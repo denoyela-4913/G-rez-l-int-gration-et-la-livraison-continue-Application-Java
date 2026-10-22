@@ -11,6 +11,7 @@ build
 
 # Ne servent pas à construire l'image
 k8s
+charts
 db
 *.md
 docker-compose.yml

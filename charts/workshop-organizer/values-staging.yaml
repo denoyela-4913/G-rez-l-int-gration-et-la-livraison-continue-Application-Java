@@ -1,0 +1,18 @@
+# Environnement de pré-production.
+# Pas de mot de passe ici : il est fourni à l'installation et ne passe pas par Git.
+# Installation : helm install workshop charts/workshop-organizer -f charts/workshop-organizer/values-staging.yaml \
+#                  --set db.password='<mot de passe>' -n workshop-staging --create-namespace
+app:
+  # Tag écrit à la main, indépendant de celui de dev : staging ne change de version que sur décision.
+  image: ghcr.io/denoyela-4913/oc-p04-java-workshop-organizer-web-api:0.3.1
+  replicas: 1
+
+db:
+  persistence:
+    size: 2Gi
+
+service:
+  # 8082 et non 8080 : dev et staging peuvent ainsi être installés ET joignables en même temps. Avec
+  # minikube tunnel, deux Services sur le même port se partagent le même port de la machine : l'un masque l'autre.
+  # (8081 est déjà celui du staging d'Angular.)
+  port: 8082

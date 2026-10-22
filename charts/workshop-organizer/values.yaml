@@ -1,0 +1,37 @@
+# Valeurs par défaut du chart. Même schéma que values.tpl.yaml (app.* et db.*), complété par
+# app.replicas, db.persistence et service.*.
+# Chaque environnement les surcharge dans son fichier : values-dev.yaml, values-staging.yaml.
+app:
+  # Image complète, tag compris (ex. ghcr.io/utilisateur/image:0.3.1). Pas de valeur par défaut : chaque
+  # environnement doit choisir sa version, le chart refuse de s'installer sans (voir le template).
+  image: ""
+  # Port d'écoute du conteneur (Spring Boot).
+  port: 8080
+  # Nom d'un Secret de type docker-registry pour tirer l'image d'un registre PRIVÉ. Vide : pas de secret
+  # (cas du paquet GHCR public). Le Secret doit exister dans le namespace avant l'installation.
+  imagePullSecret: ""
+  replicas: 1
+
+db:
+  image: postgres:13
+  # Port de PostgreSQL : utilisé par le conteneur (variable PGPORT), le Service et l'URL JDBC de l'application.
+  port: 5432
+  username: postgres
+  # Mot de passe de la base. Pas de valeur par défaut : à fournir avec --set db.password=... (ou dans le
+  # fichier de valeurs pour un mot de passe de développement). Il est lu par la base ET par l'application
+  # depuis le même Secret. ATTENTION : PostgreSQL ne le lit qu'à la création de la base. Le changer ensuite
+  # avec "helm upgrade" met le Secret à jour mais pas le mot de passe réel stocké dans le volume.
+  password: ""
+  database: workshop-organizer-database
+  persistence:
+    # true : les données sont dans un volume persistant (PVC) et survivent à la suppression du pod.
+    # false : dossier temporaire (emptyDir), les données disparaissent avec le pod.
+    enabled: true
+    size: 1Gi
+    # Classe de stockage. Vide : celle par défaut du cluster ("standard" sur Minikube).
+    storageClass: ""
+
+service:
+  type: LoadBalancer
+  # Port du Service de l'application sur la machine (avec minikube tunnel).
+  port: 8080

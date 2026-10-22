@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: workshop-organizer-db-service
+  labels:
+    {{- include "workshop-organizer.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: workshop-organizer-db
+  ports:
+    - protocol: TCP
+      port: {{ .Values.db.port }}
+      targetPort: {{ .Values.db.port }}
+  # Service "headless" : pas d'adresse virtuelle, le DNS renvoie directement l'adresse du pod.
+  clusterIP: None

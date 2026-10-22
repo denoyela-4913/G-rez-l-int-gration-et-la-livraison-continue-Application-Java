@@ -1,0 +1,9 @@
+apiVersion: v2
+name: workshop-organizer
+description: Workshop Organizer (API Spring Boot et sa base PostgreSQL)
+type: application
+# Version du chart : à augmenter quand les templates changent.
+version: 0.1.0
+# Version de l'application déployée par défaut (informative : l'image réellement déployée est
+# app.image dans les fichiers de valeurs). Écrite à la main, comme le tag d'image.
+appVersion: "0.3.1"
