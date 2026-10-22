@@ -247,11 +247,41 @@ mais ne modifie pas ces fichiers : après une release, éditer `values-dev.yaml`
 on décide de promouvoir la version), puis `helm upgrade`. Tant que ce n'est pas fait, le cluster continue de
 faire tourner l'ancienne version.
 
-### Limite connue : pas de sonde de disponibilité
+### Sondes de santé
 
-Ni le chart ni `k8s/` ne définissent de sonde (`readinessProbe`). `helm install --wait` rend donc la main dès
-que les conteneurs ont démarré, éventuellement pendant l'initialisation de PostgreSQL. Les scripts de test
-attendent que l'application réponde au lieu de supposer qu'elle est prête.
+| Composant | Sonde | Test | Si elle échoue |
+|---|---|---|---|
+| Application | `startupProbe` | `GET /` (2 s x 30 essais = 60 s de marge) | le conteneur est redémarré ; `readiness` et `liveness` sont suspendues pendant ce temps |
+| Application | `readinessProbe` | `GET /` toutes les 5 s, 3 échecs | le pod est **retiré du Service** (aucune requête), sans redémarrage |
+| Application | `livenessProbe` | `GET /` toutes les 10 s, 3 échecs | le conteneur est **redémarré** |
+| Base | `readinessProbe` | `pg_isready -h 127.0.0.1` toutes les 2 s | le pod est retiré du Service |
+
+- Les durées sont des valeurs du chart (`app.probes.*`, `db.probes.*`). `enabled: false` supprime les sondes
+  d'un composant (comparaison, débogage).
+- `GET /` ne vérifie pas la base (l'application n'a pas d'Actuator). La liveness est volontairement sur cette
+  route : une route qui dépend de la base ferait **redémarrer toute l'application** à chaque panne de la base.
+- La base n'a **pas de liveness** : redémarrer une base sur une fausse alerte est plus risqué que d'attendre
+  (avec `db.persistence.enabled=false`, ce serait une perte de données).
+- `pg_isready` est appelé avec `-h 127.0.0.1` (TCP) : pendant son initialisation, l'image PostgreSQL démarre un
+  serveur temporaire **sans TCP**. Sans `-h`, la sonde répondrait « prêt » alors que la base n'existe pas encore.
+- Un **`preStop`** (`app.preStopSeconds`, 5 s par défaut) fait attendre l'ancien pod avant son arrêt, lors d'une mise
+  à jour : le Service n'a pas encore fini de le retirer de sa liste, et sans pause les requêtes qui lui sont encore
+  envoyées échouent. `0` supprime la pause.
+- Un **init container** `wait-for-db` attend que la base accepte les connexions avant de lancer l'application.
+  Sans lui, comme le Service de la base n'a d'adresse que lorsque la base est prête, l'application démarrait
+  avant et était redémarrée une fois à chaque installation (mesuré : 1 redémarrage à chaque essai, 3 essais sur 3 ;
+  0 avec l'init container).
+
+Mesures sur Minikube (voir la PR) :
+
+- **Base** : sans sonde, le pod est déclaré prêt 1,4 à 3,3 s **avant** que PostgreSQL accepte une requête SQL ;
+  avec la sonde (période de 2 s), il est déclaré prêt 1,3 à 1,7 s **après**. Avec une période de 5 s, ce retard
+  était de 4 à 5 s.
+- **Mise à jour de l'application** (`rollout restart`, une réplique, requêtes toutes les 0,1 s) : ≈ 3,1 s de coupure
+  sans sondes (14 échecs sur ~185 requêtes), ≈ 2 s avec les sondes seules (4 échecs : elles évitent d'envoyer du
+  trafic à un pod pas encore prêt, mais l'ancien pod s'arrête avant que le Service ait fini de le retirer de sa
+  liste), et **aucune coupure avec les sondes et le `preStop`** (0 échec sur 3 essais).
+- **JVM figée** (`SIGSTOP`) : retirée du Service au bout de ~15 s (readiness), redémarrée par la liveness.
 
 ### Accès avec `minikube tunnel`
 
