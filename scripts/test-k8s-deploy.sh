@@ -2,29 +2,52 @@
 # Teste le déploiement Kubernetes (k8s/) sur Minikube : déploie l'application et sa base dans un
 # namespace jetable, vérifie qu'elles répondent par le Service LoadBalancer, que les données sont bien
 # écrites dans PostgreSQL et qu'elles survivent à la suppression des pods, puis supprime le namespace.
-# Usage : scripts/test-k8s-deploy.sh [--pause] [--keep]
+# Usage : scripts/test-k8s-deploy.sh [--pause] [--keep] [--helm dev|staging]
 #   --pause : attend la touche Entrée entre chaque étape (pour suivre pas à pas).
 #   --keep  : ne supprime pas le namespace à la fin (pour inspecter le cluster à la main).
+#   --helm  : déploie avec le chart Helm (charts/workshop-organizer) et le fichier de valeurs de
+#             l'environnement donné (values-dev.yaml ou values-staging.yaml), au lieu des manifestes de k8s/.
+#             Le mot de passe de la base est un mot de passe aléatoire passé avec --set (celui de dev est
+#             donc remplacé), ce qui vérifie aussi que le chart le transmet à la base et à l'application.
 # Prérequis : kubectl, Minikube démarré et "minikube tunnel" lancé dans un autre terminal (sans le
 # tunnel, le Service LoadBalancer n'a pas d'adresse externe). Le script les vérifie et, s'il manque
 # quelque chose, affiche les commandes à lancer.
-# Le port 8080 de la machine doit être libre : le tunnel y publie le Service.
+# Le port du Service de l'application doit être libre sur la machine : le tunnel l'y publie (8080 avec
+# k8s/ et --helm dev, 8082 avec --helm staging).
 # Codes de sortie : 0 = tout est bon, 1 = usage incorrect, 2 = prérequis manquant, 3 = un test a échoué.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 PAUSE=false
 KEEP=false
-for arg in "$@"; do
-	case "$arg" in
+HELM_ENV=""
+while [ $# -gt 0 ]; do
+	case "$1" in
 		--pause) PAUSE=true ;;
 		--keep) KEEP=true ;;
+		--helm)
+			# L'option exige une valeur : sans elle, le script se rabattrait en silence sur k8s/.
+			if [ $# -lt 2 ] || [ -z "$2" ]; then
+				echo "L'option --helm demande un environnement (dev ou staging)." >&2
+				echo "Usage : $0 [--pause] [--keep] [--helm dev|staging]" >&2
+				exit 1
+			fi
+			HELM_ENV="$2"
+			shift
+			;;
 		*)
-			echo "Usage : $0 [--pause] [--keep]" >&2
+			echo "Usage : $0 [--pause] [--keep] [--helm dev|staging]" >&2
 			exit 1
 			;;
 	esac
+	shift
 done
+CHART="charts/workshop-organizer"
+if [ -n "$HELM_ENV" ] && [ ! -f "$CHART/values-$HELM_ENV.yaml" ]; then
+	echo "Environnement Helm inconnu : \"$HELM_ENV\" (pas de fichier $CHART/values-$HELM_ENV.yaml)." >&2
+	echo "Usage : $0 [--pause] [--keep] [--helm dev|staging]" >&2
+	exit 1
+fi
 
 NS="workshop-test-$RANDOM"
 APP="deploy/workshop-organizer-app-deployment"
@@ -73,6 +96,9 @@ MISSING=()
 
 if ! command -v kubectl >/dev/null 2>&1; then
 	MISSING+=("kubectl est absent. Installation : https://kubernetes.io/docs/tasks/tools/")
+fi
+if [ -n "$HELM_ENV" ] && ! command -v helm >/dev/null 2>&1; then
+	MISSING+=("helm est absent. Installation : https://helm.sh/docs/intro/install/")
 fi
 if ! command -v minikube >/dev/null 2>&1; then
 	MISSING+=("minikube est absent. Installation : https://minikube.sigs.k8s.io/docs/start/")
@@ -127,7 +153,7 @@ wait_http_200() {
 }
 
 # Atelier de test (nom unique : on est sûr de retrouver notre donnée, pas celle d'un autre test ou
-# d'un autre service qui répondrait sur le port 8080).
+# d'un autre service qui répondrait sur le même port).
 WORKSHOP="Atelier-$RANDOM"
 
 # count_workshop : nombre de lignes de l'atelier de test, lu directement dans PostgreSQL (dans le pod
@@ -148,9 +174,22 @@ wait_workshop_listed() {
 }
 
 # ---------- Déploiement ----------
-step "Déploiement de k8s/ dans le namespace $NS"
-kubectl create namespace "$NS" >/dev/null
-kubectl apply -n "$NS" -f k8s/
+if [ -n "$HELM_ENV" ]; then
+	step "Déploiement du chart Helm ($HELM_ENV) dans le namespace $NS"
+	kubectl create namespace "$NS" >/dev/null
+	DB_PASSWORD="test-$RANDOM$RANDOM"
+	# --wait : helm attend que les ressources soient prêtes avant de rendre la main.
+	helm install workshop "$CHART" -f "$CHART/values-$HELM_ENV.yaml" --set db.password="$DB_PASSWORD" \
+		-n "$NS" --wait --timeout 4m | grep -E "^(NAME|STATUS|REVISION)"
+	check "la release Helm est en état \"deployed\"" \
+		test "$(helm status workshop -n "$NS" -o json | python3 -c 'import sys, json; print(json.load(sys.stdin)["info"]["status"])')" = "deployed"
+	check "le mot de passe passé à Helm est celui du Secret (partagé par la base et l'application)" \
+		test "$(kubectl get secret -n "$NS" workshop-organizer-db-secret -o jsonpath='{.data.password}' | base64 -d)" = "$DB_PASSWORD"
+else
+	step "Déploiement de k8s/ dans le namespace $NS"
+	kubectl create namespace "$NS" >/dev/null
+	kubectl apply -n "$NS" -f k8s/
+fi
 check "la base est prête (rollout)" kubectl rollout status -n "$NS" "$DB" --timeout=120s
 check "l'application est prête (rollout)" kubectl rollout status -n "$NS" "$APP" --timeout=180s
 check "le PVC de la base est lié à un volume (Bound)" \
@@ -170,8 +209,9 @@ if [ -z "$IP" ]; then
 	echo "Résultat : $PASS réussi(s), $FAIL échec(s)" >&2
 	exit 3
 fi
-ok "adresse externe : $IP"
-URL="http://$IP:8080"
+PORT=$(kubectl get svc -n "$NS" "$SVC" -o jsonpath='{.spec.ports[0].port}')
+ok "adresse externe : $IP:$PORT"
+URL="http://$IP:$PORT"
 
 # ---------- Tests fonctionnels ----------
 step "L'application répond par le LoadBalancer"
