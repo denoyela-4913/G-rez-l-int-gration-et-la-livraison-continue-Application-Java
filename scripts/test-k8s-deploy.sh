@@ -192,6 +192,16 @@ else
 fi
 check "la base est prête (rollout)" kubectl rollout status -n "$NS" "$DB" --timeout=120s
 check "l'application est prête (rollout)" kubectl rollout status -n "$NS" "$APP" --timeout=180s
+# Les sondes sont définies (on lit la configuration du Deployment) : sans elles, "prêt" voudrait seulement
+# dire "le conteneur a démarré".
+probe() { kubectl get "$1" -n "$NS" -o jsonpath="{.spec.template.spec.containers[0].$2}"; }
+check "l'application a ses sondes de démarrage, de disponibilité et de vie" \
+	test -n "$(probe "$APP" startupProbe)" -a -n "$(probe "$APP" readinessProbe)" -a -n "$(probe "$APP" livenessProbe)"
+check "la base a sa sonde de disponibilité" test -n "$(probe "$DB" readinessProbe)"
+# Garde-fou : l'application ne doit pas démarrer avant la base (init container "wait-for-db"), sinon elle
+# échoue à se connecter et Kubernetes la redémarre.
+check "l'application n'a pas redémarré pendant son démarrage" \
+	test "$(kubectl get pod -n "$NS" -l app=workshop-organizer-app -o jsonpath='{.items[0].status.containerStatuses[0].restartCount}')" = "0"
 check "le PVC de la base est lié à un volume (Bound)" \
 	test "$(kubectl get pvc -n "$NS" workshop-organizer-db-pvc -o jsonpath='{.status.phase}')" = "Bound"
 
