@@ -3,7 +3,7 @@
 app:
   # Tag mis à jour automatiquement à chaque release (update_version.sh, via semantic-release).
   image: ghcr.io/denoyela-4913/oc-p04-java-workshop-organizer-web-api:0.3.2
-  replicas: 1
+  replicas: 2
 
 db:
   # Mot de passe de DÉVELOPPEMENT, le même que docker-compose.yml. Ne convient qu'à un environnement

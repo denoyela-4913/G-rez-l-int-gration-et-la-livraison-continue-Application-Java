@@ -197,7 +197,7 @@ Le schéma des valeurs reprend celui de `values.tpl.yaml` (`app.*` et `db.*`), c
 | Valeur | `values-dev.yaml` | `values-staging.yaml` | Rôle |
 |---|---|---|---|
 | `app.image` | `...:X.Y.Z`, **suit chaque release** (CI) | `...:X.Y.Z`, **promu à la main** | image complète, **tag compris** ; obligatoire (le chart refuse de s'installer sans) |
-| `app.replicas` | 1 | 1 | nombre de pods de l'application |
+| `app.replicas` | 2 | 3 | nombre de pods de l'application (la base reste à 1 : voir le chart) |
 | `app.imagePullSecret` | (vide) | (vide) | Secret docker-registry pour un registre **privé** ; le paquet GHCR étant public, il n'est pas utilisé |
 | `db.password` | `oc2024` (dev uniquement) | **aucun : à fournir** | obligatoire ; lu par la base et l'application depuis le même Secret |
 | `db.persistence.size` | 1Gi | 2Gi | taille du volume de la base |
@@ -217,7 +217,7 @@ l'autre (8081 est déjà utilisé par le staging du dépôt Angular). Ces ports 
 helm install workshop charts/workshop-organizer -f charts/workshop-organizer/values-dev.yaml -n workshop-dev --create-namespace
 helm install workshop charts/workshop-organizer -f charts/workshop-organizer/values-staging.yaml --set db.password='<mot de passe>' -n workshop-staging --create-namespace
 helm list -A                                   # releases installées
-helm upgrade workshop charts/workshop-organizer -f charts/workshop-organizer/values-staging.yaml --set db.password='<mot de passe>' -n workshop-staging --set app.replicas=2
+helm upgrade workshop charts/workshop-organizer -f charts/workshop-organizer/values-staging.yaml --set db.password='<mot de passe>' -n workshop-staging --set app.replicas=4
 helm history workshop -n workshop-staging      # révisions
 helm rollback workshop 1 -n workshop-staging   # retour à la révision 1
 helm uninstall workshop -n workshop-dev
