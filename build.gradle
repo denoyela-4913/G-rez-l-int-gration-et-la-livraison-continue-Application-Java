@@ -11,7 +11,7 @@ group = 'fr.oc.devops'
 
 // Version de l'application : NE PAS MODIFIER À LA MAIN, utiliser ./update_version.sh
 // (elle doit rester identique à ARG APP_VERSION dans le Dockerfile ; run-tests.sh le vérifie).
-version = '0.3.1'
+version = '0.3.2'
 
 // Agent ByteBuddy (utilisé par Mockito) : chargé au démarrage de la JVM de test (-javaagent)
 // plutôt que dynamiquement.

@@ -33,7 +33,7 @@ RUN addgroup -g 10001 workshop \
 # Version de l'application : NE PAS MODIFIER À LA MAIN, utiliser ./update_version.sh
 # Elle doit être identique à "version" dans build.gradle : le jar est nommé d'après
 # build.gradle, donc en cas d'écart le COPY ci-dessous échoue (fichier introuvable).
-ARG APP_VERSION=0.3.1
+ARG APP_VERSION=0.3.2
 
 # Pas de --chown : le jar reste propriétaire root, donc en lecture seule pour "workshop".
 COPY --from=build /workspace/build/libs/workshop-organizer-${APP_VERSION}.jar app.jar
