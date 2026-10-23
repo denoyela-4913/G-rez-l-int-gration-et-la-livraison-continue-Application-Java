@@ -5,7 +5,7 @@
 app:
   # Tag écrit à la main, indépendant de celui de dev : staging ne change de version que sur décision.
   image: ghcr.io/denoyela-4913/oc-p04-java-workshop-organizer-web-api:0.3.1
-  replicas: 1
+  replicas: 3
 
 db:
   persistence:
