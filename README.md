@@ -196,7 +196,7 @@ Le schéma des valeurs reprend celui de `values.tpl.yaml` (`app.*` et `db.*`), c
 
 | Valeur | `values-dev.yaml` | `values-staging.yaml` | Rôle |
 |---|---|---|---|
-| `app.image` | `...:0.3.1` | `...:0.3.1` | image complète, **tag compris** ; obligatoire (le chart refuse de s'installer sans) |
+| `app.image` | `...:X.Y.Z`, **suit chaque release** (CI) | `...:X.Y.Z`, **promu à la main** | image complète, **tag compris** ; obligatoire (le chart refuse de s'installer sans) |
 | `app.replicas` | 1 | 1 | nombre de pods de l'application |
 | `app.imagePullSecret` | (vide) | (vide) | Secret docker-registry pour un registre **privé** ; le paquet GHCR étant public, il n'est pas utilisé |
 | `db.password` | `oc2024` (dev uniquement) | **aucun : à fournir** | obligatoire ; lu par la base et l'application depuis le même Secret |
@@ -205,6 +205,9 @@ Le schéma des valeurs reprend celui de `values.tpl.yaml` (`app.*` et `db.*`), c
 
 Les autres valeurs (`db.image`, `db.port`, `db.username`, `db.database`, `db.persistence.enabled`,
 `db.persistence.storageClass`, `service.type`) ont une valeur par défaut dans `values.yaml`.
+
+Les tags des deux fichiers peuvent donc différer : dev reçoit la dernière version publiée, staging garde la
+version qu'on y a promue. Le détail est dans « Mettre à jour la version déployée » plus bas.
 
 Staging est sur le port **8082** pour que dev et staging puissent être installés et joignables en même temps :
 avec `minikube tunnel`, deux Services sur le même port se partagent le même port de la machine, et l'un masque
